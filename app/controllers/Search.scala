@@ -14,7 +14,7 @@ object Search extends Controller {
   def tweets(query: String) = {
     FailFast {
       WaitOneMinute {
-        Cached(query, 60 * 15) {
+        Cached(query, 60) {
           Action {
             Async {
               Logger.info(s"Cache miss for $query")
