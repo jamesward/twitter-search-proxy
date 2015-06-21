@@ -1,4 +1,4 @@
-name := """play-scala"""
+name := """twitter-search-proxy"""
 
 version := "1.0-SNAPSHOT"
 
