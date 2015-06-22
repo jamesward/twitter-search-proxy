@@ -1,18 +1,16 @@
-import java.util.concurrent.TimeoutException
+import controllers.Search
 import org.specs2.mutable._
-
-import play.api.libs.json.Json
-import play.api.mvc.{Results, PlainResult, AsyncResult, Result}
-import play.api.{Play, Logger}
+import play.api.mvc.{ResponseHeader, Result}
+import play.api.Play
 import play.api.test._
 import play.api.test.Helpers._
-import scala.concurrent.duration.Duration
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.Try
 
 class SearchSpec extends Specification {
+
+  var searchController = new Search
 
   "Search" should {
     "return some tweets if the required config is set" in new WithApplication {
@@ -23,24 +21,15 @@ class SearchSpec extends Specification {
         // call the controller 100 times
         
         val futures: Seq[Future[Result]] = (1 to 100).map { i =>
-          Future[Result](controllers.Search.tweets("typesafe")(FakeRequest()))
+          searchController.tweets("typesafe")(FakeRequest())
         }
         
-        Await.result(Future.sequence(futures), Duration(20, SECONDS)).foreach { result =>
+        Await.result(Future.sequence(futures), 20 seconds).foreach { result =>
+
           val responseStatus = result match {
-            case PlainResult(status, _) =>
-              status
-            case AsyncResult(p) =>
-              Try {
-                Await.result(p, Duration(300, MILLISECONDS))
-              } recover {
-                case _ =>
-                  Results.RequestTimeout
-              } get match {
-                case PlainResult(status, _) => status
-              }
+            case Result(ResponseHeader(status, _, _), _, _) => status
           }
-        
+
           responseStatus match {
             case OK =>
               successes += 1

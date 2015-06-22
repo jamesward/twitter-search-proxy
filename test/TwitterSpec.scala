@@ -2,12 +2,10 @@ import org.specs2.mutable.Specification
 
 import play.api.libs.json.Json
 import play.api.test._
-import play.api.test.FakeApplication
-import play.api.test.Helpers._
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import utils.Twitter
-import play.api.{Logger, Play}
+import play.api.Play
 
 class TwitterSpec extends Specification {
 
@@ -29,7 +27,7 @@ class TwitterSpec extends Specification {
         val bearerToken = Await.result(Twitter.bearerToken, Duration(1, MINUTES))
         bearerToken must not beNull
         
-        val twitterResponse = await(Twitter.fetchTweets(bearerToken, "typesafe"))
+        val twitterResponse = Await.result(Twitter.fetchTweets(bearerToken, "typesafe"), 1 minute)
 
         (twitterResponse.json \ "errors").asOpt[List[ErrorMessage]] must beNone
 
