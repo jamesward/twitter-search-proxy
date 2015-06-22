@@ -6,34 +6,28 @@ import scala.concurrent.Future
 import scala.util.Random
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import play.api.Logger
 
-case class FailFast[A](action: Action[A]) extends Action[A] with Controller {
 
-  def apply(request: Request[A]): Future[Result] = {
+object FailFast extends ActionBuilder[Request] with ActionFilter[Request] with Results {
+  override protected def filter[A](request: Request[A]): Future[Option[Result]] = {
     // fail about once in every 10 times
     if (Random.nextInt(10) == 0) {
-      Logger.info("FailFast")
-      Future(InternalServerError)
-    } else {
-      action(request)
+      Future.successful(Some(InternalServerError))
+    }
+    else {
+      Future.successful(None)
     }
   }
-
-  lazy val parser = action.parser
 }
 
-case class WaitOneMinute[A](action: Action[A]) extends Action[A] with Controller {
-
-  def apply(request: Request[A]): Future[Result] = {
-    // wait one minute about once in every 10 times
+object WaitForNoReason extends ActionBuilder[Request] {
+  def invokeBlock[A](request: Request[A], block: (Request[A]) => Future[Result]) = {
+    // wait 25 seconds about once in every 10 times
     if (Random.nextInt(10) == 0) {
-      Logger.info("WaitOneMinute")
-      Promise.timeout(RequestTimeout, 1 minute)
-    } else {
-      action(request)
+      Promise.timeout(request, 25.seconds).flatMap(block)
+    }
+    else {
+      block(request)
     }
   }
-
-  lazy val parser = action.parser
 }
