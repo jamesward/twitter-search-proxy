@@ -12,13 +12,13 @@ import play.api.mvc._
 import play.api.Logger
 
 
-class Search @Inject() (cache: CacheApi) extends Controller {
+class Search @Inject() (cache: CacheApi, twitter: Twitter, waitForNoReason: WaitForNoReason) extends Controller {
 
-  def tweets(query: String) = (FailFast andThen WaitForNoReason) async {
+  def tweets(query: String) = (FailFast andThen waitForNoReason) async {
     cache.get[JsValue](query).fold {
       try {
-        Twitter.bearerToken.flatMap { bearerToken =>
-          Twitter.fetchTweets(bearerToken, query).map { response =>
+        twitter.bearerToken.flatMap { bearerToken =>
+          twitter.fetchTweets(bearerToken, query).map { response =>
             cache.set(query, response.json, 1.hour)
             Ok(response.json)
           }

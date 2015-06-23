@@ -1,20 +1,52 @@
-import controllers.Search
-import org.specs2.mutable._
+import java.util.concurrent.TimeUnit
+
+import controllers.{WaitForNoReason, Search}
+import org.specs2.mutable.After
+import play.api.cache.CacheApi
+import play.api.libs.concurrent.Akka
+import play.api.libs.ws.ning.{NingWSClientConfig, NingAsyncHttpClientConfigBuilder, NingWSClient}
 import play.api.mvc.{ResponseHeader, Result}
-import play.api.Play
 import play.api.test._
-import play.api.test.Helpers._
-import scala.concurrent.duration._
-import scala.concurrent.{Await, Future}
+import utils.Twitter
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class SearchSpec extends Specification {
+import scala.concurrent.duration.Duration
+import scala.reflect.ClassTag
 
-  var searchController = new Search
+class SearchSpec extends PlaySpecification {
+
+  class MemoryCache extends CacheApi {
+    val theCache = scala.collection.mutable.Map.empty[String, Any]
+
+    override def set(key: String, value: Any, expiration: Duration): Unit =
+      theCache.put(key, value)
+
+    override def get[T: ClassTag](key: String): Option[T] =
+      theCache.get(key).map(_.asInstanceOf[T])
+
+    override def getOrElse[A: ClassTag](key: String, expiration: Duration)(orElse: => A): A =
+      theCache.getOrElse(key, orElse).asInstanceOf[A]
+
+    override def remove(key: String): Unit =
+      theCache.remove(key)
+  }
+
+  trait Context extends After {
+    lazy val app = FakeApplication()
+    lazy val wsClient = new NingWSClient(new NingAsyncHttpClientConfigBuilder(NingWSClientConfig()).build())
+    lazy val config = app.configuration
+    lazy val twitter = new Twitter(wsClient, config)
+    lazy val cache = new MemoryCache()
+    lazy val actorSystem = Akka.system(app)
+    lazy val waitForNoReason = new WaitForNoReason(actorSystem)
+    lazy val searchController = new Search(cache, twitter, waitForNoReason)
+    def after = wsClient.close()
+  }
 
   "Search" should {
-    "return some tweets if the required config is set" in new WithApplication {
-      if (Play.current.configuration.getString("twitter.consumer.key").isDefined && Play.current.configuration.getString("twitter.consumer.secret").isDefined) {
+    "return some tweets if the required config is set" in new Context {
+      if (config.getString("twitter.consumer.key").isDefined && config.getString("twitter.consumer.secret").isDefined) {
         
         var successes, timeouts, failures = 0
         
@@ -24,7 +56,7 @@ class SearchSpec extends Specification {
           searchController.tweets("typesafe")(FakeRequest())
         }
         
-        Await.result(Future.sequence(futures), 20 seconds).foreach { result =>
+        await(Future.sequence(futures), 1, TimeUnit.MINUTES).foreach { result =>
 
           val responseStatus = result match {
             case Result(ResponseHeader(status, _, _), _, _) => status
@@ -40,8 +72,8 @@ class SearchSpec extends Specification {
           }
         }
         
-        // Of 100 requests about 60 - 90 should succeed
-        successes must beGreaterThan (60) and beLessThan(90)
+        // Of 100 requests about 60 - 95 should succeed
+        successes must beGreaterThan (60) and beLessThan(95)
 
         // Of 100 requests about 5 - 20 should timeout
         timeouts must beGreaterThan (5) and beLessThan(20)
