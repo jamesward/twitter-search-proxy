@@ -10,7 +10,7 @@ Run Locally
 $ export TWITTER_CONSUMER_KEY=<YOUR TWITTER CONSUMER KEY>
 $ export TWITTER_CONSUMER_SECRET=<YOUR TWITTER CONSUMER SECRET>
 
-$ play ~run
+$ ./activator ~run
 ```
 
 Try it:
