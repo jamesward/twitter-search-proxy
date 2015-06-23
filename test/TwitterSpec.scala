@@ -1,35 +1,38 @@
-import org.specs2.mutable.Specification
-
+import org.specs2.mutable.After
 import play.api.libs.json.Json
+import play.api.libs.ws.ning.{NingWSClientConfig, NingAsyncHttpClientConfigBuilder, NingWSClient}
 import play.api.test._
-import play.api.test.FakeApplication
-import play.api.test.Helpers._
-import scala.concurrent.Await
-import scala.concurrent.duration._
 import utils.Twitter
-import play.api.{Logger, Play}
+import play.api.Configuration
 
-class TwitterSpec extends Specification {
+class TwitterSpec extends PlaySpecification {
+
+  trait Context extends After {
+    lazy val wsClient = NingWSClient()
+    lazy val config: Configuration = FakeApplication().configuration
+    lazy val twitter: Twitter = new Twitter(wsClient, config)
+    def after = wsClient.close()
+  }
 
   case class ErrorMessage(message: String, code: Int)
 
   implicit val errorMessageReads = Json.reads[ErrorMessage]
   
   "Twitter.bearerToken" should {
-    "get a bearerToken if the required config is set" in new WithApplication {
-      if (Play.current.configuration.getString("twitter.consumer.key").isDefined && Play.current.configuration.getString("twitter.consumer.secret").isDefined) {
-        Await.result(Twitter.bearerToken, Duration(1, MINUTES)) must not beNull
+    "get a bearerToken if the required config is set" in new Context {
+      if (config.getString("twitter.consumer.key").isDefined && config.getString("twitter.consumer.secret").isDefined) {
+        await(twitter.bearerToken) must not (beNull)
       }
     }
   }
 
   "Twitter.fetchTweets" should {
-    "get tweets if the required config is set" in new WithApplication {
-      if (Play.current.configuration.getString("twitter.consumer.key").isDefined && Play.current.configuration.getString("twitter.consumer.secret").isDefined) {
-        val bearerToken = Await.result(Twitter.bearerToken, Duration(1, MINUTES))
-        bearerToken must not beNull
+    "get tweets if the required config is set" in new Context {
+      if (config.getString("twitter.consumer.key").isDefined && config.getString("twitter.consumer.secret").isDefined) {
+        val bearerToken = await(twitter.bearerToken)
+        bearerToken must not (beNull)
         
-        val twitterResponse = await(Twitter.fetchTweets(bearerToken, "typesafe"))
+        val twitterResponse = await(twitter.fetchTweets(bearerToken, "typesafe"))
 
         (twitterResponse.json \ "errors").asOpt[List[ErrorMessage]] must beNone
 

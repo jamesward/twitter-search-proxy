@@ -1,41 +1,39 @@
 package controllers
 
+import javax.inject.Inject
+
+import akka.actor.ActorSystem
 import play.api.mvc._
-import play.api.libs.concurrent.Promise
-import scala.util.Random
+import scala.concurrent.{Promise, Future}
+import scala.util.{Try, Random}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import play.api.Logger
 
-case class FailFast[A](action: Action[A]) extends Action[A] with Controller {
 
-  def apply(request: Request[A]): Result = {
+object FailFast extends ActionBuilder[Request] with ActionFilter[Request] with Results {
+  override protected def filter[A](request: Request[A]): Future[Option[Result]] = {
     // fail about once in every 10 times
     if (Random.nextInt(10) == 0) {
-      Logger.info("FailFast")
-      InternalServerError
-    } else {
-      action(request)
-    }
-  }
-
-  lazy val parser = action.parser
-}
-
-case class WaitOneMinute[A](action: Action[A]) extends Action[A] with Controller {
-
-  def apply(request: Request[A]): Result = {
-    // wait one minute about once in every 10 times
-    if (Random.nextInt(10) == 0) {
-      Logger.info("WaitOneMinute")
-      Async {
-        Promise.timeout(RequestTimeout, 1 minute)
-      }
+      Future.successful(Some(InternalServerError))
     }
     else {
-      action(request)
+      Future.successful(None)
     }
   }
+}
 
-  lazy val parser = action.parser
+class WaitForNoReason @Inject() (actorSystem: ActorSystem) extends ActionBuilder[Request] with ActionFilter[Request] with Results {
+  override protected def filter[A](request: Request[A]): Future[Option[Result]] = {
+    // fail about once in every 10 times
+    if (Random.nextInt(10) == 0) {
+      val p = Promise[Option[Result]]()
+      actorSystem.scheduler.scheduleOnce(25.seconds) {
+        p.complete(Try(Some(RequestTimeout)))
+      }
+      p.future
+    }
+    else {
+      Future.successful(None)
+    }
+  }
 }

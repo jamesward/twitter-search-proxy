@@ -1,12 +1,13 @@
 package utils
 
-import play.api.{Logger, Play}
-import play.api.libs.ws.{Response, WS}
-import com.ning.http.client.Realm.AuthScheme
-import scala.concurrent.{Promise, Future}
+import javax.inject.Inject
+
+import play.api.Configuration
+import play.api.libs.ws.{WSClient, WSAuthScheme, WSResponse}
+import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
 
-object Twitter {
+class Twitter @Inject() (ws: WSClient, config: Configuration) {
 
   /*
    * Docs: https://dev.twitter.com/docs/auth/application-only-auth
@@ -34,21 +35,21 @@ object Twitter {
    *     
    */
   lazy val bearerToken: Future[String] = {
-    require(Play.current.configuration.getString("twitter.consumer.key").isDefined)
-    require(Play.current.configuration.getString("twitter.consumer.secret").isDefined)
+    require(config.getString("twitter.consumer.key").isDefined)
+    require(config.getString("twitter.consumer.secret").isDefined)
     
-    WS.url("https://api.twitter.com/oauth2/token")
-      .withAuth(Play.current.configuration.getString("twitter.consumer.key").get, Play.current.configuration.getString("twitter.consumer.secret").get, AuthScheme.BASIC)
+    ws.url("https://api.twitter.com/oauth2/token")
+      .withAuth(config.getString("twitter.consumer.key").get, config.getString("twitter.consumer.secret").get, WSAuthScheme.BASIC)
       .post(Map("grant_type" ->  Seq("client_credentials")))
-      .withFilter(response => (response.json \ "token_type").asOpt[String] == Some("bearer"))
+      .withFilter(response => (response.json \ "token_type").asOpt[String].contains("bearer"))
       .map(response => (response.json \ "access_token").as[String])
   }
 
-  def fetchTweets(bearerToken: String, query: String): Future[Response] = {
-    WS.url("https://api.twitter.com/1.1/search/tweets.json")
+  def fetchTweets(bearerToken: String, query: String): Future[WSResponse] = {
+    ws.url("https://api.twitter.com/1.1/search/tweets.json")
       .withQueryString("q" -> query)
       .withHeaders("Authorization" -> s"Bearer $bearerToken")
-      .get
+      .get()
   }
   
 }
