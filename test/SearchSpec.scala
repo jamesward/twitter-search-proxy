@@ -34,7 +34,7 @@ class SearchSpec extends PlaySpecification {
 
   trait Context extends After {
     lazy val app = FakeApplication()
-    lazy val wsClient = new NingWSClient(new NingAsyncHttpClientConfigBuilder(NingWSClientConfig()).build())
+    lazy val wsClient = NingWSClient()
     lazy val config = app.configuration
     lazy val twitter = new Twitter(wsClient, config)
     lazy val cache = new MemoryCache()

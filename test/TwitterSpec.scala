@@ -8,7 +8,7 @@ import play.api.Configuration
 class TwitterSpec extends PlaySpecification {
 
   trait Context extends After {
-    lazy val wsClient = new NingWSClient(new NingAsyncHttpClientConfigBuilder(NingWSClientConfig()).build())
+    lazy val wsClient = NingWSClient()
     lazy val config: Configuration = FakeApplication().configuration
     lazy val twitter: Twitter = new Twitter(wsClient, config)
     def after = wsClient.close()
