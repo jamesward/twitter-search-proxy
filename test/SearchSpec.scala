@@ -48,38 +48,24 @@ class SearchSpec extends PlaySpecification {
     "return some tweets if the required config is set" in new Context {
       if (config.getString("twitter.consumer.key").isDefined && config.getString("twitter.consumer.secret").isDefined) {
         
-        var successes, timeouts, failures = 0
-        
         // call the controller 100 times
         
         val futures: Seq[Future[Result]] = (1 to 100).map { i =>
           searchController.tweets("typesafe")(FakeRequest())
         }
         
-        await(Future.sequence(futures), 1, TimeUnit.MINUTES).foreach { result =>
-
-          val responseStatus = result match {
-            case Result(ResponseHeader(status, _, _), _, _) => status
-          }
-
-          responseStatus match {
-            case OK =>
-              successes += 1
-            case INTERNAL_SERVER_ERROR =>
-              failures += 1
-            case REQUEST_TIMEOUT =>
-              timeouts += 1
-          }
+        val results = await(Future.sequence(futures), 1, TimeUnit.MINUTES).groupBy {
+          case Result(ResponseHeader(responseStatus, _, _), _, _) => responseStatus
         }
         
         // Of 100 requests about 60 - 95 should succeed
-        successes must beGreaterThan (60) and beLessThan(95)
+        results.getOrElse(OK, Seq.empty).size must beBetween (60, 95)
 
         // Of 100 requests about 5 - 20 should timeout
-        timeouts must beGreaterThan (5) and beLessThan(20)
+        results.getOrElse(REQUEST_TIMEOUT, Seq.empty).size must beBetween (5, 20)
 
         // Of 100 requests about 5 - 20 should fail
-        timeouts must beGreaterThan (5) and beLessThan(20)
+        results.getOrElse(INTERNAL_SERVER_ERROR, Seq.empty).size must beBetween (5, 20)
       }
     }
   }
